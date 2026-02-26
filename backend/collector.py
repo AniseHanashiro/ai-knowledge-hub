@@ -6,9 +6,13 @@ from bs4 import BeautifulSoup
 import google.generativeai as genai
 from youtube_transcript_api import YouTubeTranscriptApi
 import requests
+from dotenv import load_dotenv
 
 import models, database
 from sqlalchemy.orm import Session
+
+# Load environment variables
+load_dotenv()
 
 DEFAULT_RSS_SOURCES = [
     {"url": "https://hnrss.org/frontpage?q=AI", "name": "Hacker News AI", "category": "技術・研究"},
