@@ -348,9 +348,24 @@ def public_feed(db: Session = Depends(database.get_db)):
 
 @app.post("/api/collect")
 def run_collection(bg_tasks: BackgroundTasks):
-    try:
-        import collector
-        bg_tasks.add_task(collector.run_all)
-        return {"status": "started", "message": "Collection triggered in background."}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    global collection_status
+    if collection_status["is_collecting"]:
+        return {"status": "already_running"}
+        
+    collection_status["is_collecting"] = True
+    collection_status["message"] = "Starting..."
+    collection_status["last_error"] = None
+    
+    def collect_task():
+        try:
+            import collector
+            collector.run_all(collection_status)
+        except Exception as e:
+            print(f"Collection error: {e}")
+            collection_status["message"] = "Failed to start collector API"
+            collection_status["last_error"] = str(e)
+        finally:
+            collection_status["is_collecting"] = False
+            
+    bg_tasks.add_task(collect_task)
+    return {"status": "started", "message": "Collection triggered."}

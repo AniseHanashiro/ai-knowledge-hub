@@ -54,15 +54,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const collectBtn = document.getElementById('collectBtn');
     if (collectBtn) {
         collectBtn.addEventListener('click', async () => {
+            const originalHtml = collectBtn.innerHTML; // Store original text
             collectBtn.innerHTML = '実行中...';
             collectBtn.disabled = true;
-            await apiCall('/collect', { method: 'POST' });
-            alert('収集プログラムをバックグラウンドで開始しました。数分後にリロードしてください。');
-            collectBtn.innerHTML = '収集完了';
-            setTimeout(() => {
-                collectBtn.innerHTML = '収集実行';
-                collectBtn.disabled = false;
-            }, 5000);
+
+            try {
+                await apiCall('/collect', { method: 'POST' });
+
+                const checkStatus = setInterval(async () => {
+                    const statusData = await apiCall('/collect/status');
+
+                    if (statusData) {
+                        if (statusData.is_collecting) {
+                            collectBtn.innerHTML = statusData.message || '収集中...';
+                        } else {
+                            clearInterval(checkStatus);
+
+                            if (statusData.last_error) {
+                                collectBtn.innerHTML = 'エラー: ' + statusData.last_error.substring(0, 20) + '...';
+                                console.error("Collection Error:", statusData.last_error);
+                            } else {
+                                collectBtn.innerHTML = '収集完了';
+                            }
+
+                            // Reload articles after brief delay to show completion message
+                            setTimeout(() => {
+                                loadStats();
+                                loadArticles();
+
+                                // Revert button after 5 seconds to give time to read errors
+                                setTimeout(() => {
+                                    collectBtn.innerHTML = originalHtml;
+                                    collectBtn.disabled = false;
+                                }, 5000);
+                            }, 1000);
+                        }
+                    }
+                }, 3000);
+            } catch (err) {
+                collectBtn.innerHTML = '通信エラー';
+                setTimeout(() => {
+                    collectBtn.innerHTML = originalHtml;
+                    collectBtn.disabled = false;
+                }, 3000);
+            }
         });
     }
 

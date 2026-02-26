@@ -121,9 +121,13 @@ def process_item(title, url, content, source_name, source_type, db, model):
         print(f"Failed to process {title}: {e}")
         return False
 
-def run_all():
+def run_all(status_dict=None):
+    if status_dict is None:
+        status_dict = {}
+        
     db = database.SessionLocal()
     try:
+        if status_dict: status_dict["message"] = "Initializing sources..."
         init_sources(db)
         genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
         model = genai.GenerativeModel('gemini-1.5-flash')
@@ -131,6 +135,7 @@ def run_all():
         sources = db.query(models.CustomSource).filter(models.CustomSource.enabled == 1).all()
         for src in sources:
             try:
+                if status_dict: status_dict["message"] = f"Fetching {src.display_name}..."
                 if src.type == "rss":
                     feed = feedparser.parse(src.url)
                     for entry in getattr(feed, 'entries', [])[:10]:
@@ -139,7 +144,6 @@ def run_all():
                         content = BeautifulSoup(entry.description, 'html.parser').get_text() if hasattr(entry, 'description') else ""
                         process_item(title, url, content, src.display_name, "article", db, model)
                 elif src.type == "youtube":
-                    # Simplified youtube logic grabbing latest video from channel xml
                     yt_feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={src.url}"
                     feed = feedparser.parse(yt_feed_url)
                     for entry in getattr(feed, 'entries', [])[:3]:
@@ -152,8 +156,17 @@ def run_all():
                 src.last_fetched = datetime.utcnow()
                 db.commit()
             except Exception as e:
-                print(f"Error fetching source {src.display_name}: {e}")
+                err_msg = f"Error fetching source {src.display_name}: {e}"
+                print(err_msg)
+                if status_dict: status_dict["last_error"] = str(e)
                 
+        if status_dict: status_dict["message"] = "Collection complete."
+    except Exception as e:
+        err_msg = f"Fatal error in collection: {e}"
+        print(err_msg)
+        if status_dict: 
+            status_dict["last_error"] = str(e)
+            status_dict["message"] = "Failed"
     finally:
         db.close()
 
