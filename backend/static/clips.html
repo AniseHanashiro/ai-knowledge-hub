@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clips - AI Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .folder-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+
+        .folder-tab {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .folder-tab.active {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="brand">
+            <span class="brand-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path
+                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+                    </path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+            </span>
+            AI Hub
+            <div class="nav-links">
+                <a href="/index.html">ブラウズ</a>
+                <a href="/timeline.html">タイムライン</a>
+                <a href="/search.html">検索</a>
+                <a href="/following.html">フォロー</a>
+                <a href="/clips.html" class="active">クリップ</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="display: block;">
+        <div class="folder-tabs" id="folderTabs">
+            <button class="folder-tab active" onclick="loadClips(null)">すべて表示</button>
+            <button class="folder-tab" onclick="loadClips('default')">default</button>
+        </div>
+
+        <div class="articles-grid" id="clipsGrid">
+            <div style="grid-column: 1/-1; text-align: center; color: var(--text-muted);">読み込み中...</div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        async function loadFolders() {
+            const tabsContainer = document.getElementById('folderTabs');
+            const folders = await apiCall('/clips/folders');
+
+            if (folders && folders.length > 0) {
+                let html = `<button class="folder-tab active" onclick="loadClips(null)">すべて表示</button>`;
+                folders.forEach(f => {
+                    html += `<button class="folder-tab" onclick="loadClips('${f}')">${f}</button>`;
+                });
+                tabsContainer.innerHTML = html;
+            }
+        }
+
+        async function loadClips(folder) {
+            // Update active tab visual
+            document.querySelectorAll('.folder-tab').forEach(t => {
+                t.classList.remove('active');
+                if ((!folder && t.textContent === 'すべて表示') || t.textContent === folder) {
+                    t.classList.add('active');
+                }
+            });
+
+            let url = '/clips';
+            if (folder) url += `?folder=${encodeURIComponent(folder)}`;
+
+            const data = await apiCall(url);
+            const grid = document.getElementById('clipsGrid');
+            if (!data) return;
+
+            grid.innerHTML = '';
+            if (data.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px; border: 1px dashed var(--border-color); border-radius: 12px;">クリップされた記事はありません。</div>';
+                return;
+            }
+
+            data.forEach(art => {
+                // Ensure the icon is filled star for clips
+                art.is_clipped = 1;
+                grid.innerHTML += renderArticleCard(art);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFolders();
+            loadClips(null);
+        });
+    </script>
+</body>
+
+</html>
