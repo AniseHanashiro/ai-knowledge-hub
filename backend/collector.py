@@ -134,9 +134,9 @@ def run_all(status_dict=None):
         if status_dict: status_dict["message"] = "Initializing sources..."
         init_sources(db)
         
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("Gemini API Key") or os.environ.get("Gemini")
         if not api_key:
-            raise ValueError("APIキーが設定されていません (GEMINI_API_KEY 未設定)")
+            raise ValueError("APIキーが設定されていません (Railwayで 'GEMINI_API_KEY' として設定してください)")
             
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-1.5-flash')

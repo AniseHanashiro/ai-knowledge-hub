@@ -152,7 +152,8 @@ class AISearchReq(BaseModel):
 
 @app.post("/api/search/ai")
 def ai_search(req: AISearchReq, db: Session = Depends(database.get_db)):
-    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("Gemini API Key") or os.environ.get("Gemini")
+    genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash')
     
     prompt = f"""
