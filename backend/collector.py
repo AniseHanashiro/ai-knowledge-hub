@@ -129,7 +129,12 @@ def run_all(status_dict=None):
     try:
         if status_dict: status_dict["message"] = "Initializing sources..."
         init_sources(db)
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+        
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("APIキーが設定されていません (GEMINI_API_KEY 未設定)")
+            
+        genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         sources = db.query(models.CustomSource).filter(models.CustomSource.enabled == 1).all()
