@@ -352,6 +352,10 @@ def public_feed(db: Session = Depends(database.get_db)):
     html += "</body></html>"
     return html
 
+@app.get("/api/collect/status")
+def get_collect_status():
+    return collection_status
+
 @app.post("/api/collect")
 def run_collection(bg_tasks: BackgroundTasks):
     global collection_status
