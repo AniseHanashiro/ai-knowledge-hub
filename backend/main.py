@@ -352,6 +352,11 @@ def public_feed(db: Session = Depends(database.get_db)):
     html += "</body></html>"
     return html
 
+@app.get("/api/debug/env")
+def debug_env():
+    # Only return keys for security
+    return {"keys": list(os.environ.keys())}
+
 @app.get("/api/collect/status")
 def get_collect_status():
     return collection_status
