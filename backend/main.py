@@ -322,6 +322,12 @@ def get_stats(db: Session = Depends(database.get_db)):
 # API: Feed & Actions
 # ============================
 
+collection_status = {
+    "is_collecting": False,
+    "message": "Waiting to start...",
+    "last_error": None
+}
+
 @app.get("/feed/public", response_class=HTMLResponse)
 def public_feed(db: Session = Depends(database.get_db)):
     cutoff = datetime.utcnow() - timedelta(days=60)
