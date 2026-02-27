@@ -1,226 +1,113 @@
 <!DOCTYPE html>
-<html lang="ja" data-theme="dark">
+<html lang="ja">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timeline - AI Knowledge Hub</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
     <style>
         .timeline-container {
-            max-width: 800px;
-            margin: 0 auto;
-            position: relative;
+            border-left: 2px solid var(--border);
+            padding-left: 2rem;
+            margin-left: 1rem;
         }
 
-        .timeline-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 24px;
-            height: 100%;
-            width: 2px;
-            background: var(--border-color);
-        }
-
-        .timeline-day {
+        .timeline-item {
             position: relative;
-            margin-bottom: 40px;
-            padding-left: 60px;
+            margin-bottom: 2rem;
         }
 
         .timeline-dot {
             position: absolute;
-            left: 17px;
-            top: 6px;
-            width: 16px;
-            height: 16px;
+            left: -2.5rem;
+            top: 1.5rem;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            background: var(--bg-secondary);
-            border: 3px solid var(--accent);
-            z-index: 10;
-        }
-
-        .timeline-date {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 16px;
-            letter-spacing: 0.05em;
-        }
-
-        .timeline-cards {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .mini-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 16px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .mini-card:hover {
-            border-color: var(--accent);
-            transform: translateX(4px);
-        }
-
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 8px;
-            background: var(--bg-secondary);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 40px;
-        }
-
-        .cal-day {
-            aspect-ratio: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: var(--bg-tertiary);
-            border-radius: 8px;
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            cursor: pointer;
-            position: relative;
-        }
-
-        .cal-day:hover {
-            background: var(--border-color);
-            color: var(--text-primary);
-        }
-
-        .cal-day.has-data {
-            color: var(--text-primary);
-            font-weight: 700;
-            border: 1px solid var(--accent-light);
-        }
-
-        .cal-badge {
             background: var(--accent);
-            color: white;
-            font-size: 0.6rem;
-            padding: 2px 6px;
-            border-radius: 99px;
-            position: absolute;
-            bottom: 4px;
+            border: 2px solid var(--bg);
         }
     </style>
 </head>
 
 <body>
-    <nav class="navbar">
-        <div class="brand">
-            <span class="brand-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path
-                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                    </path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                </svg>
-            </span>
-            AI Hub
-            <div class="nav-links">
-                <a href="/index.html">ブラウズ</a>
-                <a href="/timeline.html" class="active">タイムライン</a>
-                <a href="/search.html">検索</a>
-                <a href="/following.html">フォロー</a>
-                <a href="/clips.html">クリップ</a>
-            </div>
+    <div class="navbar">
+        <div style="font-size: 1.2rem; font-weight: bold;">🧠 AI Knowledge Hub</div>
+        <div class="nav-links">
+            <a href="/index.html">ダッシュボード</a>
+            <a href="/timeline.html" class="active">タイムライン</a>
+            <a href="/search.html">AI検索</a>
+            <a href="/following.html">フォロー中</a>
+            <a href="/clips.html">クリップ</a>
         </div>
-    </nav>
-
-    <div class="container" style="display: block; max-width: 1000px;">
-        <h2 style="margin-bottom: 24px;">アクティビティカレンダー</h2>
-        <div class="calendar-grid" id="calGrid">
-            <!-- Populated via JS -->
-        </div>
-
-        <div class="timeline-container" id="timelineStream">
-            <!-- Populated via JS -->
-        </div>
+        <button class="btn-collect" onclick="runCollect()">🔄 収集実行</button>
     </div>
 
-    <script src="/static/app.js"></script>
+    <div class="container" style="flex-direction: column; max-width: 1000px;">
+
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>📅 タイムライン</h2>
+            <select id="days-select" onchange="loadTimeline()"
+                style="padding: 0.5rem; background: var(--bg2); color: var(--text); border: 1px solid var(--border); border-radius:4px;">
+                <option value="7">過去7日間</option>
+                <option value="14">過去14日間</option>
+                <option value="30">過去30日間</option>
+            </select>
+        </div>
+
+        <div id="timeline-content">
+            <!-- Content here -->
+        </div>
+
+    </div>
+
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const calData = await apiCall('/timeline/calendar');
-            if (calData && calData.dates) {
-                renderCalendar(calData.dates);
-                // Load today's stream by default
-                const today = new Date().toISOString().slice(0, 10);
-                loadStream(today);
-            }
-        });
+        async function loadTimeline() {
+            const days = document.getElementById('days-select').value;
+            const res = await fetch(`/api/timeline?days=${days}`);
+            const data = await res.json();
 
-        function renderCalendar(datesDict) {
-            const grid = document.getElementById('calGrid');
-            grid.innerHTML = '';
+            const container = document.getElementById('timeline-content');
 
-            // Simple approach: show last 14 days
-            for (let i = 13; i >= 0; i--) {
-                const d = new Date();
-                d.setDate(d.getDate() - i);
-                const dateStr = d.toISOString().slice(0, 10);
-                const count = datesDict[dateStr] || 0;
-
-                grid.innerHTML += `
-                    <div class="cal-day ${count > 0 ? 'has-data' : ''}" onclick="loadStream('${dateStr}')">
-                        <span>${d.getDate()}日</span>
-                        ${count > 0 ? `<div class="cal-badge">${count}件</div>` : ''}
-                    </div>
-                `;
-            }
-        }
-
-        async function loadStream(dateStr) {
-            const data = await apiCall(`/timeline/stream?date=${dateStr}`);
-            const ts = document.getElementById('timelineStream');
-
-            if (!data || data.length === 0) {
-                ts.innerHTML = `
-                    <div class="timeline-day">
-                        <div class="timeline-dot"></div>
-                        <div class="timeline-date">${dateStr}</div>
-                        <div style="color: var(--text-muted);">この日の発行データはありません</div>
-                    </div>
-                `;
+            if (Object.keys(data).length === 0) {
+                container.innerHTML = '<p>記事がありません。</p>';
                 return;
             }
 
-            let html = `
-                <div class="timeline-day">
-                    <div class="timeline-dot"></div>
-                    <div class="timeline-date">${dateStr}</div>
-                    <div class="timeline-cards">
-            `;
+            const sortedDates = Object.keys(data).sort((a, b) => b.localeCompare(a));
+            let html = '';
 
-            data.forEach(art => {
-                const badgeColor = art.trust_level === 'HIGH' ? 'var(--trust-high)' : 'var(--text-muted)';
-                html += `
-                    <div class="mini-card" onclick="window.open('${art.url}', '_blank')">
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px;">
-                            ${art.source_name} <span style="color: ${badgeColor}; margin-left:8px;">${art.trust_level}</span>
-                        </div>
-                        <h4 style="margin-bottom: 8px; color: var(--text-primary);">${art.title}</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary);">${art.summary_ja || '要約なし'}</p>
+            for (const d of sortedDates) {
+                html += `<div class="timeline-date">${d} <span style="font-size:1rem; color:var(--text2)">(${data[d].length}件)</span></div>`;
+                html += `<div class="timeline-container">`;
+                for (const a of data[d]) {
+                    html += `
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="card">
+                    <div>
+                        <span class="badge badge-${a.priority_label}">${a.priority_label}</span>
+                        <span class="badge" style="background:var(--bg3); border:1px solid var(--border)">${a.source_name}</span>
                     </div>
-                `;
-            });
-
-            html += `</div></div>`;
-            ts.innerHTML = html;
+                    <a href="${a.url}" target="_blank" class="card-title">${a.title}</a>
+                    <div class="card-summary">${a.summary_ja}</div>
+                </div>
+            </div>`;
+                }
+                html += `</div>`;
+            }
+            container.innerHTML = html;
         }
+
+        async function runCollect() {
+            alert("バックグラウンドで収集を開始します。");
+            await fetch('/api/collect', { method: 'POST' });
+        }
+
+        window.onload = loadTimeline;
     </script>
 </body>
 

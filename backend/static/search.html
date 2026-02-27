@@ -1,218 +1,118 @@
 <!DOCTYPE html>
-<html lang="ja" data-theme="dark">
+<html lang="ja">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Search - Knowledge Hub</title>
+    <title>AI Search - AI Knowledge Hub</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
-    <style>
-        .search-hero {
-            text-align: center;
-            padding: 60px 20px 40px;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .huge-search {
-            width: 100%;
-            padding: 18px 24px;
-            font-size: 1.2rem;
-            border-radius: 16px;
-            border: 2px solid var(--border-color);
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            margin-bottom: 24px;
-            transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .huge-search:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 4px var(--accent-light);
-        }
-
-        .suggestions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            justify-content: center;
-            margin-bottom: 40px;
-        }
-
-        .suggestion-chip {
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
-            padding: 8px 16px;
-            border-radius: 99px;
-            border: 1px dashed var(--border-color);
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: all 0.2s;
-        }
-
-        .suggestion-chip:hover {
-            border-style: solid;
-            border-color: var(--accent);
-            color: var(--text-primary);
-        }
-
-        .ai-thinking {
-            display: none;
-            padding: 20px;
-            text-align: center;
-            color: var(--accent);
-            font-weight: 600;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                opacity: 0.6;
-            }
-
-            50% {
-                opacity: 1;
-            }
-
-            100% {
-                opacity: 0.6;
-            }
-        }
-
-        .interpretation-box {
-            display: none;
-            background: rgba(99, 102, 241, 0.1);
-            border-left: 4px solid var(--accent);
-            padding: 16px 20px;
-            border-radius: 0 8px 8px 0;
-            margin-bottom: 32px;
-            color: var(--text-primary);
-        }
-    </style>
 </head>
 
 <body>
-    <nav class="navbar">
-        <div class="brand">
-            <span class="brand-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path
-                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                    </path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                </svg>
-            </span>
-            AI Hub
-            <div class="nav-links">
-                <a href="/index.html">ブラウズ</a>
-                <a href="/timeline.html">タイムライン</a>
-                <a href="/search.html" class="active">検索</a>
-                <a href="/following.html">フォロー</a>
-                <a href="/clips.html">クリップ</a>
-            </div>
+    <div class="navbar">
+        <div style="font-size: 1.2rem; font-weight: bold;">🧠 AI Knowledge Hub</div>
+        <div class="nav-links">
+            <a href="/index.html">ダッシュボード</a>
+            <a href="/timeline.html">タイムライン</a>
+            <a href="/search.html" class="active">AI検索</a>
+            <a href="/following.html">フォロー中</a>
+            <a href="/clips.html">クリップ</a>
         </div>
-
-        <div class="toolbar">
-            <button class="icon-btn" id="themeToggle" title="テーマ変更">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                </svg>
-            </button>
-            <button class="icon-btn" title="通知">
-                <!-- Notifications icon -->
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                </svg>
-            </button>
-            <button class="collect-btn" id="collectBtn" title="手動収集">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-                収集実行
-            </button>
-        </div>
-    </nav>
-
-    <div class="container" style="display: block;">
-        <div class="search-hero">
-            <input type="text" id="aiQuery" class="huge-search" placeholder="AIで自然言語検索... 例：最新のGPTモデルについての記事"
-                autocomplete="off">
-            <div class="suggestions">
-                <button class="suggestion-chip" onclick="setQuery('最新のGPTモデルについての記事')">最新のGPTモデルについての記事</button>
-                <button class="suggestion-chip"
-                    onclick="setQuery('日本語のNotebookLM解説YouTube')">日本語のNotebookLM解説YouTube</button>
-                <button class="suggestion-chip" onclick="setQuery('OpenAIの企業発表 今週')">OpenAIの企業発表 今週</button>
-                <button class="suggestion-chip" onclick="setQuery('初心者向けAI活用方法')">初心者向けAI活用方法</button>
-            </div>
-
-            <div class="ai-thinking" id="aiThinking">
-                Gemini AIがクエリを解析中...
-            </div>
-        </div>
-
-        <div class="interpretation-box" id="interpretationBox"></div>
-
-        <div class="articles-grid" id="articlesGrid"></div>
+        <button class="btn-collect" onclick="runCollect()">🔄 収集実行</button>
     </div>
 
-    <script src="/static/app.js"></script>
+    <div class="container" style="flex-direction: column; max-width: 1000px;">
+
+        <h2>✨ Gemini AI Search</h2>
+        <p style="color: var(--text2)">自然言語で記事や動画を検索し、AIが文脈を解釈して関連順に再ランキングします。</p>
+
+        <div style="margin-top: 1rem;">
+            <input type="text" id="ai-search-input" class="search-bar" placeholder="例: NotebookLMについて話している日本語のYoutube動画"
+                onkeypress="if(event.key === 'Enter') doSearch()">
+        </div>
+
+        <div class="quick-searches">
+            <button class="quick-search-btn" onclick="setQuery('大規模言語モデルの最新動向')">大規模言語モデルの最新動向</button>
+            <button class="quick-search-btn" onclick="setQuery('OpenAIのビジネス戦略についての記事')">OpenAIのビジネス戦略についての記事</button>
+            <button class="quick-search-btn" onclick="setQuery('RAG (検索拡張生成) の実践的なチュートリアル動画')">RAG (検索拡張生成)
+                の実践動画</button>
+            <button class="quick-search-btn" onclick="setQuery('画像生成AIの著作権問題')">画像生成AIの著作権問題</button>
+        </div>
+
+        <div id="loading" style="display: none; text-align: center; padding: 2rem; color: var(--accent);">
+            <h3>AI推論中... 🤖 💭</h3>
+        </div>
+
+        <div id="ai-parsed-result"
+            style="margin-bottom: 2rem; display:none; background: var(--bg2); padding: 1rem; border-radius: 8px;">
+            <h4 style="margin-top:0;">🔍 検索条件の解釈:</h4>
+            <pre id="parsed-json" style="color: var(--text2); font-size: 0.85rem; overflow-x: auto;"></pre>
+        </div>
+
+        <div class="card-grid" id="search-results">
+            <!-- Results here -->
+        </div>
+
+    </div>
+
     <script>
         function setQuery(q) {
-            document.getElementById('aiQuery').value = q;
-            doAiSearch(q);
+            document.getElementById('ai-search-input').value = q;
+            doSearch();
         }
 
-        async function doAiSearch(query) {
-            if (!query) return;
+        async function doSearch() {
+            const q = document.getElementById('ai-search-input').value;
+            if (!q) return;
 
-            document.getElementById('aiThinking').style.display = 'block';
-            document.getElementById('interpretationBox').style.display = 'none';
-            document.getElementById('articlesGrid').innerHTML = '';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('search-results').innerHTML = '';
+            document.getElementById('ai-parsed-result').style.display = 'none';
 
             try {
-                const data = await apiCall('/search/ai', {
+                const res = await fetch('/api/search/ai', {
                     method: 'POST',
-                    body: JSON.stringify({ query })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: q })
                 });
+                const data = await res.json();
 
-                document.getElementById('aiThinking').style.display = 'none';
+                document.getElementById('loading').style.display = 'none';
 
-                if (data) {
-                    const ib = document.getElementById('interpretationBox');
-                    ib.style.display = 'block';
-                    ib.innerHTML = `<strong>AIの解釈:</strong> ${data.interpreted_query}`;
-
-                    const grid = document.getElementById('articlesGrid');
-                    if (data.articles && data.articles.length > 0) {
-                        data.articles.forEach(art => {
-                            grid.innerHTML += renderArticleCard(art);
-                        });
-                    } else {
-                        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: 12px;">該当するデータが見つかりませんでした。別の言葉で検索してください。</div>';
-                    }
+                if (data.parsed_query) {
+                    document.getElementById('ai-parsed-result').style.display = 'block';
+                    document.getElementById('parsed-json').innerText = JSON.stringify(data.parsed_query, null, 2);
                 }
-            } catch (err) {
-                console.error(err);
-                document.getElementById('aiThinking').style.display = 'none';
-                document.getElementById('articlesGrid').innerHTML = '<div style="grid-column: 1/-1; color: var(--breaking); text-align: center;">AI解析に失敗しました。</div>';
+
+                const container = document.getElementById('search-results');
+                if (!data.results || data.results.length === 0) {
+                    container.innerHTML = '<p>結果が見つかりませんでした。</p>';
+                    return;
+                }
+
+                container.innerHTML = data.results.map(a => `
+            <div class="card" style="border: 2px solid var(--border)">
+                ${a.relevance_note ? `<div class="ai-reason">✨ <b>AI Note:</b> ${a.relevance_note}</div>` : ''}
+                <div>
+                    <span class="badge badge-${a.priority_label}">${a.priority_label}</span>
+                    <span class="badge badge-MEDIUM">AI Score: ${a.ai_rank_score || 0}</span>
+                </div>
+                <a href="${a.url}" target="_blank" class="card-title">${a.title}</a>
+                <div class="card-summary">${a.summary_ja}</div>
+            </div>
+        `).join('');
+            } catch (e) {
+                document.getElementById('loading').style.display = 'none';
+                alert('検索中にエラーが発生しました。GEMINI_API_KEY が正しく設定されているか確認してください。');
+                console.error(e);
             }
         }
 
-        document.getElementById('aiQuery').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                doAiSearch(e.target.value.trim());
-            }
-        });
-
-        // If accessed with global search param
-        const urlParams = new URLSearchParams(window.location.search);
-        const sq = urlParams.get('q');
-        if (sq) {
-            setQuery(sq);
+        async function runCollect() {
+            alert("バックグラウンドで収集を開始します。");
+            await fetch('/api/collect', { method: 'POST' });
         }
     </script>
 </body>

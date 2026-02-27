@@ -1,214 +1,138 @@
 <!DOCTYPE html>
-<html lang="ja" data-theme="dark">
+<html lang="ja">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Following - AI Knowledge Hub</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
-    <style>
-        .source-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 24px;
-        }
-
-        .source-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-        }
-
-        .source-card.disabled {
-            opacity: 0.6;
-        }
-
-        .source-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .add-source-form {
-            background: var(--bg-secondary);
-            border: 1px dashed var(--border-color);
-            padding: 24px;
-            border-radius: 12px;
-            display: flex;
-            gap: 12px;
-            align-items: flex-end;
-            margin-bottom: 32px;
-        }
-
-        .form-group {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .form-group label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-
-        .form-input {
-            background: var(--bg-tertiary);
-            border: 1px solid transparent;
-            color: var(--text-primary);
-            padding: 10px 12px;
-            border-radius: 6px;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-    </style>
 </head>
 
 <body>
-    <nav class="navbar">
-        <div class="brand">
-            <span class="brand-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path
-                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                    </path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                </svg>
-            </span>
-            AI Hub
-            <div class="nav-links">
-                <a href="/index.html">ブラウズ</a>
-                <a href="/timeline.html">タイムライン</a>
-                <a href="/search.html">検索</a>
-                <a href="/following.html" class="active">フォロー</a>
-                <a href="/clips.html">クリップ</a>
-            </div>
+    <div class="navbar">
+        <div style="font-size: 1.2rem; font-weight: bold;">🧠 AI Knowledge Hub</div>
+        <div class="nav-links">
+            <a href="/index.html">ダッシュボード</a>
+            <a href="/timeline.html">タイムライン</a>
+            <a href="/search.html">AI検索</a>
+            <a href="/following.html" class="active">フォロー中</a>
+            <a href="/clips.html">クリップ</a>
         </div>
-    </nav>
-
-    <div class="container" style="display: block; max-width: 1000px;">
-        <h2 style="margin-bottom: 24px;">フォロー管理</h2>
-
-        <div class="add-source-form">
-            <div class="form-group" style="flex: 2;">
-                <label>URL (YouTube / RSS)</label>
-                <input type="text" id="newUrl" class="form-input" placeholder="https://..." onblur="detectSource()">
-            </div>
-            <div class="form-group">
-                <label>名前 (自動)</label>
-                <input type="text" id="newName" class="form-input">
-            </div>
-            <div class="form-group">
-                <label>カテゴリ</label>
-                <select id="newCat" class="form-input">
-                    <option value="企業トラッカー">企業トラッカー</option>
-                    <option value="ツール・ローンチ" selected>ツール・ローンチ</option>
-                    <option value="AI活用ハック">AI活用ハック</option>
-                    <option value="技術・研究">技術・研究</option>
-                    <option value="社会・倫理・政策">社会・倫理・政策</option>
-                    <option value="ビジネス・投資">ビジネス・投資</option>
-                    <option value="雑多・コラム">雑多・コラム</option>
-                </select>
-            </div>
-            <div class="form-group" style="flex: 0;">
-                <button class="collect-btn" onclick="addSource()">追加</button>
-            </div>
-        </div>
-
-        <div class="source-grid" id="sourceGrid">
-            <div style="grid-column: 1/-1; text-align: center; color: var(--text-muted);">読み込み中...</div>
-        </div>
+        <button class="btn-collect" onclick="runCollect()">🔄 収集実行</button>
     </div>
 
-    <script src="/static/app.js"></script>
-    <script>
-        let currentType = 'rss';
+    <div class="container" style="flex-direction: column; max-width: 1000px;">
 
-        async function detectSource() {
-            const url = document.getElementById('newUrl').value.trim();
-            if (!url) return;
-            const res = await apiCall('/sources/detect', {
-                method: 'POST',
-                body: JSON.stringify({ url })
-            });
-            if (res) {
-                currentType = res.type;
-                if (!document.getElementById('newName').value) {
-                    document.getElementById('newName').value = res.display_name;
-                }
-                document.getElementById('newCat').value = res.suggested_category;
-            }
+        <div
+            style="background:var(--bg2); padding:2rem; border-radius:8px; margin-bottom:2rem; border:1px solid var(--border);">
+            <h2>🤖 NotebookLM 連携用フィード (Atom/RSS)</h2>
+            <p style="color:var(--text2)">
+                このURLをNotebookLMのソースとして追加すると、AIが高く評価した記事(スコア55以上)を自動で連携できます。<br />※外部からアクセス可能なホスト名(Railway等のURL)に置き換えて使用してください。
+            </p>
+            <div style="display:flex; gap:1rem; align-items:center;">
+                <input type="text" id="feed-url" value="http://localhost:8000/feed/public" readonly
+                    style="flex:1; padding:0.5rem; background:var(--bg); color:var(--text); border:1px solid var(--accent); border-radius:4px;">
+                <button class="btn-secondary" onclick="copyFeed()">コピー</button>
+            </div>
+        </div>
+
+        <h2>📡 フォロー中のソース</h2>
+
+        <div style="margin-bottom:2rem; background:var(--bg2); padding:1rem; border-radius:8px;">
+            <h4>+ ソースを追加</h4>
+            <div style="display:flex; gap:1rem;">
+                <input type="text" id="new-url" placeholder="RSSのURL または YouTubeチャンネルID"
+                    style="flex:1; padding:0.5rem; border-radius:4px; border:1px solid var(--border); background:var(--bg); color:var(--text);">
+                <button class="btn-collect" onclick="addSource()">追加</button>
+            </div>
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>種別</th>
+                    <th>名前/URL</th>
+                    <th>状態</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="sources-body">
+                <!-- Sources here -->
+            </tbody>
+        </table>
+
+    </div>
+
+    <script>
+        async function loadSources() {
+            const res = await fetch('/api/sources');
+            const sources = await res.json();
+            const tbody = document.getElementById('sources-body');
+
+            tbody.innerHTML = sources.map(s => `
+        <tr>
+            <td><span class="badge" style="background:var(--bg3); border:1px solid var(--border);">${s.type}</span></td>
+            <td>
+                <div style="font-weight:bold">${s.display_name}</div>
+                <div style="font-size:0.8rem; color:var(--text2)">${s.url}</div>
+            </td>
+            <td>
+                <label>
+                    <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleSource(${s.id}, this.checked)">
+                    有効
+                </label>
+            </td>
+            <td>
+                <button class="btn-danger" onclick="deleteSource(${s.id})">削除</button>
+            </td>
+        </tr>
+    `).join('');
         }
 
         async function addSource() {
-            const url = document.getElementById('newUrl').value.trim();
-            const name = document.getElementById('newName').value.trim();
-            const cat = document.getElementById('newCat').value;
-
-            if (!url || !name) return alert('URLと名前を入力してください');
-
-            const res = await apiCall('/sources', {
+            const url = document.getElementById('new-url').value;
+            if (!url) return;
+            await fetch('/api/sources', {
                 method: 'POST',
-                body: JSON.stringify({
-                    url: url,
-                    display_name: name,
-                    category: cat,
-                    type: currentType
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
             });
-
-            if (res) {
-                document.getElementById('newUrl').value = '';
-                document.getElementById('newName').value = '';
-                loadSources();
-            }
-        }
-
-        async function toggleSource(id) {
-            await apiCall(`/sources/${id}`, { method: 'PUT' });
+            document.getElementById('new-url').value = '';
             loadSources();
         }
 
-        async function deleteSource(id) {
-            if (confirm('本当に削除しますか？')) {
-                await apiCall(`/sources/${id}`, { method: 'DELETE' });
-                loadSources();
-            }
-        }
-
-        async function loadSources() {
-            const data = await apiCall('/sources');
-            const grid = document.getElementById('sourceGrid');
-            if (!data) return;
-            grid.innerHTML = '';
-
-            data.forEach(s => {
-                grid.innerHTML += `
-                    <div class="source-card ${s.enabled === 0 ? 'disabled' : ''}">
-                        <div class="source-header">
-                            <span class="badge" style="background:var(--accent-light); color:var(--accent);">${s.type}</span>
-                            <div style="display:flex; gap:8px;">
-                                <button class="action-btn" onclick="toggleSource(${s.id})" title="${s.enabled === 1 ? '無効にする' : '有効にする'}">${s.enabled === 1 ? '⏸️' : '▶️'}</button>
-                                <button class="action-btn" onclick="deleteSource(${s.id})" style="color:var(--breaking);">🗑️</button>
-                            </div>
-                        </div>
-                        <h4 style="margin-bottom:4px;">${s.display_name}</h4>
-                        <div style="font-size:0.8rem; color:var(--text-muted); word-break:break-all; margin-bottom:12px;">${s.url}</div>
-                        <div style="font-size:0.8rem; color:var(--text-secondary);">カテゴリ: ${s.category}</div>
-                    </div>
-                `;
+        async function toggleSource(id, checked) {
+            await fetch(`/api/sources/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: checked })
             });
         }
 
-        document.addEventListener('DOMContentLoaded', loadSources);
+        async function deleteSource(id) {
+            if (!confirm('本当に削除しますか？')) return;
+            await fetch(`/api/sources/${id}`, { method: 'DELETE' });
+            loadSources();
+        }
+
+        function copyFeed() {
+            // Determine current origin to build the proper URL
+            const url = window.location.origin + '/feed/public';
+            navigator.clipboard.writeText(url);
+            alert('コピーしました: ' + url);
+        }
+
+        async function runCollect() {
+            alert("バックグラウンドで収集を開始します。");
+            await fetch('/api/collect', { method: 'POST' });
+        }
+
+        window.onload = () => {
+            document.getElementById('feed-url').value = window.location.origin + '/feed/public';
+            loadSources();
+        };
     </script>
 </body>
 

@@ -1,18 +1,29 @@
-name: Daily News Collection
+name: Daily Data Collection
+
 on:
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '0 22 * * *' # 毎日 22:00 UTC = 翌7:00 JST
   workflow_dispatch:
+
 jobs:
   collect:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: python backend/collector.py
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run collection
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          DATABASE_PATH: ./ai_knowledge_hub.db
+        run: |
+          cd backend
+          python collector.py

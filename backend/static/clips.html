@@ -1,121 +1,77 @@
 <!DOCTYPE html>
-<html lang="ja" data-theme="dark">
+<html lang="ja">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clips - AI Knowledge Hub</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
-    <style>
-        .folder-tabs {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 24px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 12px;
-        }
-
-        .folder-tab {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            padding: 8px 16px;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-
-        .folder-tab.active {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-        }
-    </style>
 </head>
 
 <body>
-    <nav class="navbar">
-        <div class="brand">
-            <span class="brand-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path
-                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                    </path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                </svg>
-            </span>
-            AI Hub
-            <div class="nav-links">
-                <a href="/index.html">ブラウズ</a>
-                <a href="/timeline.html">タイムライン</a>
-                <a href="/search.html">検索</a>
-                <a href="/following.html">フォロー</a>
-                <a href="/clips.html" class="active">クリップ</a>
-            </div>
+    <div class="navbar">
+        <div style="font-size: 1.2rem; font-weight: bold;">🧠 AI Knowledge Hub</div>
+        <div class="nav-links">
+            <a href="/index.html">ダッシュボード</a>
+            <a href="/timeline.html">タイムライン</a>
+            <a href="/search.html">AI検索</a>
+            <a href="/following.html">フォロー中</a>
+            <a href="/clips.html" class="active">クリップ</a>
         </div>
-    </nav>
+        <button class="btn-collect" onclick="runCollect()">🔄 収集実行</button>
+    </div>
 
-    <div class="container" style="display: block;">
-        <div class="folder-tabs" id="folderTabs">
-            <button class="folder-tab active" onclick="loadClips(null)">すべて表示</button>
-            <button class="folder-tab" onclick="loadClips('default')">default</button>
-        </div>
-
-        <div class="articles-grid" id="clipsGrid">
-            <div style="grid-column: 1/-1; text-align: center; color: var(--text-muted);">読み込み中...</div>
+    <div class="container" style="flex-direction: column;">
+        <h2>📌 保存したクリップ</h2>
+        <div id="clips-content">
+            <!-- clips here -->
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
     <script>
-        async function loadFolders() {
-            const tabsContainer = document.getElementById('folderTabs');
-            const folders = await apiCall('/clips/folders');
+        async function loadClips() {
+            const res = await fetch('/api/clips');
+            const data = await res.json();
 
-            if (folders && folders.length > 0) {
-                let html = `<button class="folder-tab active" onclick="loadClips(null)">すべて表示</button>`;
-                folders.forEach(f => {
-                    html += `<button class="folder-tab" onclick="loadClips('${f}')">${f}</button>`;
-                });
-                tabsContainer.innerHTML = html;
-            }
-        }
-
-        async function loadClips(folder) {
-            // Update active tab visual
-            document.querySelectorAll('.folder-tab').forEach(t => {
-                t.classList.remove('active');
-                if ((!folder && t.textContent === 'すべて表示') || t.textContent === folder) {
-                    t.classList.add('active');
-                }
-            });
-
-            let url = '/clips';
-            if (folder) url += `?folder=${encodeURIComponent(folder)}`;
-
-            const data = await apiCall(url);
-            const grid = document.getElementById('clipsGrid');
-            if (!data) return;
-
-            grid.innerHTML = '';
-            if (data.length === 0) {
-                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px; border: 1px dashed var(--border-color); border-radius: 12px;">クリップされた記事はありません。</div>';
+            const container = document.getElementById('clips-content');
+            if (Object.keys(data).length === 0) {
+                container.innerHTML = '<p>保存されたクリップはありません。ダッシュボードの☆ボタンを押して保存できます。</p>';
                 return;
             }
 
-            data.forEach(art => {
-                // Ensure the icon is filled star for clips
-                art.is_clipped = 1;
-                grid.innerHTML += renderArticleCard(art);
-            });
+            let html = '';
+            for (const folder in data) {
+                html += `<h3 style="margin-top:2rem; padding-bottom:0.5rem; border-bottom:1px solid var(--border)">📁 ${folder}</h3>`;
+                html += `<div class="card-grid">`;
+                html += data[folder].map(a => `
+            <div class="card">
+                <div><span class="badge badge-MEDIUM">${a.source_name}</span></div>
+                <a href="${a.url}" target="_blank" class="card-title">${a.title}</a>
+                <div class="card-summary">${a.summary_ja}</div>
+                <div class="card-footer" style="justify-content:flex-end">
+                    <button class="btn-secondary" onclick="unclip(${a.id})">クリップ解除</button>
+                </div>
+            </div>
+        `).join('');
+                html += `</div>`;
+            }
+            container.innerHTML = html;
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadFolders();
-            loadClips(null);
-        });
+        async function unclip(id) {
+            if (!confirm("クリップから削除しますか？")) return;
+            await fetch(`/api/articles/${id}/clip`, { method: 'DELETE' });
+            loadClips();
+        }
+
+        async function runCollect() {
+            alert("バックグラウンドで収集を開始します。");
+            await fetch('/api/collect', { method: 'POST' });
+        }
+
+        window.onload = loadClips;
     </script>
 </body>
 

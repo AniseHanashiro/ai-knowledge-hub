@@ -1,183 +1,166 @@
 import os
+import datetime
 import json
 import feedparser
-from datetime import datetime
-from bs4 import BeautifulSoup
-import google.generativeai as genai
 from youtube_transcript_api import YouTubeTranscriptApi
-import requests
-from dotenv import load_dotenv
+from google import genai
+from database import SessionLocal
+from models import Article, CustomSource
 
-import models, database
-from sqlalchemy.orm import Session
+def get_gemini_client():
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key or api_key == "your_gemini_api_key_here":
+        raise ValueError("Valid GEMINI_API_KEY is required.")
+    return genai.Client(api_key=api_key)
 
-# Load environment variables
-load_dotenv()
-
-DEFAULT_RSS_SOURCES = [
-    {"url": "https://hnrss.org/frontpage?q=AI", "name": "Hacker News AI", "category": "技術・研究"},
-    {"url": "https://www.reddit.com/r/MachineLearning/.rss", "name": "Reddit ML", "category": "技術・研究"},
-    {"url": "http://export.arxiv.org/rss/cs.AI", "name": "arXiv AI", "category": "技術・研究"},
-    {"url": "https://techcrunch.com/tag/artificial-intelligence/feed/", "name": "TechCrunch AI", "category": "企業トラッカー"},
-    {"url": "https://venturebeat.com/category/ai/feed/", "name": "VentureBeat AI", "category": "ビジネス・投資"},
-    {"url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "name": "The Verge AI", "category": "ツール・ローンチ"},
-    {"url": "https://openai.com/blog/rss.xml", "name": "OpenAI Blog", "category": "企業トラッカー"},
-    {"url": "https://blog.google/technology/ai/rss/", "name": "Google AI Blog", "category": "企業トラッカー"},
-    {"url": "https://www.anthropic.com/rss.xml", "name": "Anthropic Blog", "category": "企業トラッカー"},
-]
-
-DEFAULT_YOUTUBE = [
-    {"url": "UCZHmQk67mSJgfCCTn7xBfew", "name": "Yannic Kilcher"},
-    {"url": "UCbfYPyITQ-7l4upoX8nvctg", "name": "Two Minute Papers"},
-    {"url": "UCgpjWze2V0I2RmGE7-dZ_Lw", "name": "Matt Wolfe"},
-]
-
-GEMINI_PROMPT = """
-You are an expert AI news curator. Analyze this text/transcript and return a structured JSON.
-If the content is NOT about artificial intelligence, return an empty JSON object: {}
-
-JSON Schema:
-{
-  "category": "One of: 企業トラッカー, ツール・ローンチ, AI活用ハック, 技術・研究, 社会・倫理・政策, ビジネス・投資, 雑多・コラム",
-  "tags": ["tag1", "tag2", "tag3"],
-  "company_tags": ["company1"],
-  "priority_label": "BREAKING or HOT or WATCH or INFO",
-  "trust_level": "HIGH or MEDIUM or LOW",
-  "trust_reason": "One Japanese sentence explaining why this trust level was given",
-  "summary_ja": "3 sentence Japanese summary. Separate sentences by newline.",
-  "business_point": "One Japanese sentence explaining the business impact/use case",
-  "audience": "general or developer or business or researcher",
-  "region": "global or japan or us or eu",
-  "score": {
-    "category_relevance": number (0-40),
-    "trust": number (0-30),
-    "recency": number (0-20),
-    "multi_source": number (0-10),
-    "total": number (SUM of above, max 100)
-  }
-}
-
-Return ONLY the raw JSON.
-Content to analyze:
-"""
-
-def init_sources(db: Session):
-    for rss in DEFAULT_RSS_SOURCES:
-        if not db.query(models.CustomSource).filter(models.CustomSource.url == rss["url"]).first():
-            db.add(models.CustomSource(type="rss", url=rss["url"], display_name=rss["name"], category=rss["category"]))
-    for yt in DEFAULT_YOUTUBE:
-        if not db.query(models.CustomSource).filter(models.CustomSource.url == yt["url"]).first():
-            db.add(models.CustomSource(type="youtube", url=yt["url"], display_name=yt["name"], category="ツール・ローンチ"))
-    db.commit()
-
-def fetch_youtube_video(video_id: str):
+def analyze_content(title, text, source_type):
+    client = get_gemini_client()
+    safe_text = (text or "")[:4000]
+    prompt = f"""
+    以下のコンテンツを分析し、指定されたフォーマットのJSONで出力してください。
+    
+    タイトル: {title}
+    種別: {source_type}
+    コンテンツ: {safe_text}
+    
+    【JSON出力要件】
+    {{
+        "category": "LLM または 画像生成 または エージェント または 開発ツール または 研究 または ビジネス または 全般",
+        "tags": ["技術", "概念", "などのタグを3-5個"],
+        "company_tags": ["関連する企業名を1-3個。なければ空配列"],
+        "priority_label": "BREAKING または HOT または HIGH または MEDIUM または LOW",
+        "trust_level": "HIGH または MEDIUM または LOW",
+        "trust_reason": "その信頼度の理由を1文で",
+        "summary_ja": "日本語3行要約",
+        "business_point": "ビジネスへの影響を1文で",
+        "score_details": {{
+            "relevance": 0-40,
+            "reliability": 0-30,
+            "freshness": 0-20,
+            "virality": 0-10
+        }}
+    }}
+    JSONコードブロックで返してください。それ以外の文字は不要です。
+    """
     try:
-        ts = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join([t['text'] for t in ts])
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
+        result = response.text.strip()
+        if result.startswith("```json"):
+            result = result[7:-3].strip()
+        elif result.startswith("```"):
+            result = result[3:-3].strip()
+        return json.loads(result)
+    except Exception as e:
+        print(f"Gemini Analysis Error: {e}")
+        return {}
+
+def fetch_rss(url):
+    feed = feedparser.parse(url)
+    items = []
+    for entry in feed.entries[:5]: # Top 5 recent
+        items.append({
+            "title": entry.get("title", ""),
+            "url": entry.get("link", url),
+            "summary": entry.get("summary", ""),
+            "published_at": datetime.datetime.now() # Simplified
+        })
+    return items
+
+def fetch_youtube(channel_id):
+    yt_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+    return fetch_rss(yt_url)
+    
+def get_youtube_transcript(video_id):
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'ja'])
+        text = " ".join([t['text'] for t in transcript])
         return text
-    except Exception:
+    except Exception as e:
+        print(f"Failed to get transcript for {video_id}: {e}")
         return ""
 
-def process_item(title, url, content, source_name, source_type, db, model):
-    if db.query(models.Article).filter(models.Article.url == url).first():
-        return False
-        
+def score_article(details):
     try:
-        prompt = f"{GEMINI_PROMPT}\nTitle: {title}\nSource: {source_name}\nContent: {content[:8000]}"
-        res = model.generate_content(prompt).text.strip()
-        if res.startswith("```json"): res = res[7:-3]
-        elif res.startswith("```"): res = res[3:-3]
-        
-        parsed = json.loads(res.strip())
-        if not parsed.get("category"):
-            return False
-            
-        score_data = parsed.get("score", {})
-        total_score = score_data.get("total", 0)
-        if total_score < 40:
-            return False
-            
-        article = models.Article(
-            title=title,
-            full_text=content,
-            url=url,
-            source_name=source_name,
-            source_type=source_type,
-            category=parsed.get("category", "雑多・コラム"),
-            tags=json.dumps(parsed.get("tags", [])),
-            company_tags=json.dumps(parsed.get("company_tags", [])),
-            priority_label=parsed.get("priority_label", "INFO"),
-            trust_level=parsed.get("trust_level", "MEDIUM"),
-            trust_reason=parsed.get("trust_reason", ""),
-            score=total_score,
-            score_details=json.dumps(score_data),
-            audience=parsed.get("audience", "general"),
-            region=parsed.get("region", "global"),
-            summary_ja=parsed.get("summary_ja", ""),
-            business_point=parsed.get("business_point", ""),
-            published_at=datetime.utcnow(),
-            transcript=content if source_type == 'youtube' else None
-        )
-        db.add(article)
-        db.commit()
-        return True
-    except Exception as e:
-        print(f"Failed to process {title}: {e}")
-        return False
+        return details.get("relevance", 10) + details.get("reliability", 10) + details.get("freshness", 10) + details.get("virality", 5)
+    except:
+        return 0
 
-def run_all(status_dict=None):
-    if status_dict is None:
-        status_dict = {}
-        
-    db = database.SessionLocal()
-    try:
-        if status_dict: status_dict["message"] = "Initializing sources..."
-        init_sources(db)
-        
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("Gemini API Key") or os.environ.get("Gemini")
-        if not api_key:
-            raise ValueError("APIキーが設定されていません (Railwayで 'GEMINI_API_KEY' として設定してください)")
-            
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        sources = db.query(models.CustomSource).filter(models.CustomSource.enabled == 1).all()
-        for src in sources:
-            try:
-                if status_dict: status_dict["message"] = f"Fetching {src.display_name}..."
-                if src.type == "rss":
-                    feed = feedparser.parse(src.url)
-                    for entry in getattr(feed, 'entries', [])[:10]:
-                        title = entry.title
-                        url = entry.link
-                        content = BeautifulSoup(entry.description, 'html.parser').get_text() if hasattr(entry, 'description') else ""
-                        process_item(title, url, content, src.display_name, "article", db, model)
-                elif src.type == "youtube":
-                    yt_feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={src.url}"
-                    feed = feedparser.parse(yt_feed_url)
-                    for entry in getattr(feed, 'entries', [])[:3]:
-                        title = entry.title
-                        url = entry.link
-                        video_id = entry.yt_videoid
-                        content = fetch_youtube_video(video_id)
-                        process_item(title, url, content, src.display_name, "youtube", db, model)
+def collect_data():
+    db = SessionLocal()
+    sources = db.query(CustomSource).filter(CustomSource.enabled == True).all()
+    
+    for source in sources:
+        try:
+            print(f"Fetching source: {source.display_name} ({source.url})")
+            items = []
+            if source.type == "rss":
+                items = fetch_rss(source.url)
+            elif source.type == "youtube":
+                # Ensure it's a channel ID, not a full youtube URL, or handle both.
+                # Here we assume the DB value is the channel ID because defaults look like UC...
+                items = fetch_youtube(source.url)
                 
-                src.last_fetched = datetime.utcnow()
+            for item in items:
+                # Check exist
+                if db.query(Article).filter(Article.url == item["url"]).first():
+                    continue
+                    
+                text_to_analyze = item["summary"]
+                transcript = ""
+                
+                if source.type == "youtube":
+                    video_id = item["url"].split("v=")[-1]
+                    if video_id:
+                        transcript = get_youtube_transcript(video_id)
+                        if transcript:
+                            text_to_analyze = transcript
+                
+                analysis = analyze_content(item["title"], text_to_analyze, source.type)
+                if not analysis:
+                    print(f"Skipping {item['title']} due to analysis failure.")
+                    continue
+                
+                score = score_article(analysis.get("score_details", {}))
+                
+                article = Article(
+                    title=item["title"],
+                    summary=item.get("summary", ""),
+                    summary_ja=analysis.get("summary_ja", "要約なし"),
+                    business_point=analysis.get("business_point", ""),
+                    full_text=text_to_analyze,
+                    url=item["url"],
+                    source_name=source.display_name,
+                    source_type=source.type,
+                    category=analysis.get("category", "未分類"),
+                    tags=analysis.get("tags", []),
+                    company_tags=analysis.get("company_tags", []),
+                    priority_label=analysis.get("priority_label", "LOW"),
+                    trust_level=analysis.get("trust_level", "LOW"),
+                    trust_reason=analysis.get("trust_reason", ""),
+                    score=score,
+                    score_details=analysis.get("score_details", {}),
+                    published_at=item["published_at"],
+                    fetched_at=datetime.datetime.now(),
+                    transcript=transcript,
+                    source_id=source.id
+                )
+                db.add(article)
                 db.commit()
-            except Exception as e:
-                err_msg = f"Error fetching source {src.display_name}: {e}"
-                print(err_msg)
-                if status_dict: status_dict["last_error"] = str(e)
+                print(f"Added: {article.title}")
                 
-        if status_dict: status_dict["message"] = "Collection complete."
-    except Exception as e:
-        err_msg = f"Fatal error in collection: {e}"
-        print(err_msg)
-        if status_dict: 
-            status_dict["last_error"] = str(e)
-            status_dict["message"] = "Failed"
-    finally:
-        db.close()
+            source.last_fetched = datetime.datetime.now()
+            db.commit()
+            
+        except Exception as e:
+            print(f"Error processing source {source.url}: {e}")
+            
+    db.close()
+    print("Collection finished.")
 
 if __name__ == "__main__":
-    run_all()
+    from dotenv import load_dotenv
+    load_dotenv()
+    collect_data()
