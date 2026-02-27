@@ -24,104 +24,200 @@
     </div>
 
     <div class="container">
+        <!-- サイドバー -->
         <div class="sidebar">
-            <h3>フィルター</h3>
-            <div class="form-group">
-                <label>カテゴリ</label>
-                <select id="filter-category" onchange="loadArticles()">
-                    <option value="">すべて</option>
-                    <option value="LLM">LLM</option>
-                    <option value="画像生成">画像生成</option>
-                    <option value="エージェント">エージェント</option>
-                    <option value="開発ツール">開発ツール</option>
-                    <option value="研究">研究</option>
-                    <option value="ビジネス">ビジネス</option>
-                </select>
+
+            <div class="filter-section">
+                <div class="filter-title">カテゴリ</div>
+                <ul class="filter-list" id="filter-category">
+                    <li class="active" onclick="setFilter('category', '', this)">すべて</li>
+                    <li onclick="setFilter('category', 'LLM', this)">LLM</li>
+                    <li onclick="setFilter('category', '画像生成', this)">画像生成</li>
+                    <li onclick="setFilter('category', 'エージェント', this)">エージェント</li>
+                    <li onclick="setFilter('category', '開発ツール', this)">開発ツール</li>
+                    <li onclick="setFilter('category', '研究', this)">研究</li>
+                    <li onclick="setFilter('category', 'ビジネス', this)">ビジネス</li>
+                    <li onclick="setFilter('category', '全般', this)">全般</li>
+                </ul>
             </div>
-            <div class="form-group">
-                <label>優先度</label>
-                <select id="filter-priority" onchange="loadArticles()">
-                    <option value="">すべて</option>
-                    <option value="BREAKING">BREAKING</option>
-                    <option value="HOT">HOT</option>
-                    <option value="HIGH">HIGH</option>
-                    <option value="MEDIUM">MEDIUM</option>
-                    <option value="LOW">LOW</option>
-                </select>
+
+            <div class="filter-section">
+                <div class="filter-title">優先度</div>
+                <ul class="filter-list" id="filter-priority">
+                    <li class="active" onclick="setFilter('priority', '', this)">すべて</li>
+                    <li onclick="setFilter('priority', 'BREAKING', this)">🚨 BREAKING</li>
+                    <li onclick="setFilter('priority', 'HOT', this)">🔥 HOT</li>
+                    <li onclick="setFilter('priority', 'HIGH', this)">⭐ HIGH</li>
+                    <li onclick="setFilter('priority', 'MEDIUM', this)">🔹 MEDIUM</li>
+                    <li onclick="setFilter('priority', 'LOW', this)">⚪ LOW</li>
+                </ul>
             </div>
-            <div class="form-group">
-                <label>ソース種別</label>
-                <select id="filter-source" onchange="loadArticles()">
-                    <option value="">すべて</option>
-                    <option value="rss">RSS/記事</option>
-                    <option value="youtube">YouTube</option>
-                </select>
+
+            <div class="filter-section">
+                <div class="filter-title">ソース種別</div>
+                <ul class="filter-list" id="filter-source">
+                    <li class="active" onclick="setFilter('source', '', this)">すべて</li>
+                    <li onclick="setFilter('source', 'rss', this)">RSS / 記事</li>
+                    <li onclick="setFilter('source', 'youtube', this)">YouTube</li>
+                </ul>
             </div>
-            <div class="form-group">
-                <label>期間</label>
-                <select id="filter-days" onchange="loadArticles()">
-                    <option value="1">24時間以内</option>
-                    <option value="3">3日以内</option>
-                    <option value="7" selected>7日以内</option>
-                    <option value="30">30日以内</option>
-                </select>
+
+            <div class="filter-section">
+                <div class="filter-title">期間</div>
+                <ul class="filter-list" id="filter-days">
+                    <li onclick="setFilter('days', '1', this)">今日</li>
+                    <li class="active" onclick="setFilter('days', '7', this)">1週間</li>
+                    <li onclick="setFilter('days', '30', this)">1ヶ月</li>
+                </ul>
             </div>
+
         </div>
+
+        <!-- メインコンテンツ -->
         <div class="main-content">
+
             <div class="stats-bar" id="stats-container">
-                <!-- Stats here -->
+                <!-- Stats loaded via JS -->
             </div>
+
+            <div id="empty-state" class="empty-state" style="display: none;">
+                📭 記事がありません。<br>右上の「収集実行」ボタンを押してニュースを取得してください。
+            </div>
+
             <div class="card-grid" id="articles-container">
                 <!-- Articles here -->
             </div>
+
+            <button id="load-more-btn" class="load-more" style="display: none;" onclick="loadMore()">さらに読み込む</button>
+
         </div>
     </div>
 
     <script>
+        let currentFilters = {
+            category: '',
+            priority: '',
+            source: '',
+            days: '7'
+        };
+        let currentOffset = 0;
+        const LIMIT = 20;
+
+        function setFilter(type, value, element) {
+            currentFilters[type] = value;
+
+            // Highlight active list item
+            const list = element.parentElement;
+            for (let li of list.children) {
+                li.classList.remove('active');
+            }
+            element.classList.add('active');
+
+            // Reset offset and reload
+            currentOffset = 0;
+            document.getElementById('articles-container').innerHTML = '';
+            loadArticles();
+        }
+
         async function loadStats() {
-            const res = await fetch('/api/stats');
-            const stats = await res.json();
-            document.getElementById('stats-container').innerHTML = `
-        <div class="stat-item"><span class="stat-value">${stats.articles}</span><span class="stat-label">Total Articles</span></div>
-        <div class="stat-item"><span class="stat-value">${stats.sources}</span><span class="stat-label">Active Sources</span></div>
-    `;
+            try {
+                const res = await fetch('/api/stats');
+                const stats = await res.json();
+
+                document.getElementById('stats-container').innerHTML = `
+            <div class="stat-group">
+                <div class="stat-item"><span class="stat-value">${stats.articles}</span><span class="stat-label">合計記事数</span></div>
+                <div class="stat-item"><span class="stat-value" style="color:var(--trust-high);">${stats.today_articles || 0}</span><span class="stat-label">今日の記事数</span></div>
+            </div>
+            <div class="priority-badges-container">
+                <span class="badge badge-BREAKING">BREAKING</span>
+                <span class="badge badge-HOT">HOT</span>
+                <span class="badge badge-HIGH">HIGH</span>
+            </div>
+        `;
+            } catch (e) {
+                console.error("Failed to load stats", e);
+            }
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return "";
+            const d = new Date(dateString);
+            return d.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
         async function loadArticles() {
-            const cat = document.getElementById('filter-category').value;
-            const pri = document.getElementById('filter-priority').value;
-            const src = document.getElementById('filter-source').value;
-            const days = document.getElementById('filter-days').value;
+            let url = `/api/articles?days=${currentFilters.days}&offset=${currentOffset}`;
+            if (currentFilters.category) url += `&category=${currentFilters.category}`;
+            if (currentFilters.priority) url += `&priority=${currentFilters.priority}`;
+            if (currentFilters.source) url += `&source_type=${currentFilters.source}`;
 
-            let url = `/api/articles?days=${days}`;
-            if (cat) url += `&category=${cat}`;
-            if (pri) url += `&priority=${pri}`;
-            if (src) url += `&source_type=${src}`;
+            try {
+                const res = await fetch(url);
+                const articles = await res.json();
+                const container = document.getElementById('articles-container');
+                const emptyState = document.getElementById('empty-state');
+                const loadMoreBtn = document.getElementById('load-more-btn');
 
-            const res = await fetch(url);
-            const articles = await res.json();
+                if (currentOffset === 0 && articles.length === 0) {
+                    emptyState.style.display = 'block';
+                    loadMoreBtn.style.display = 'none';
+                    return;
+                }
 
-            const container = document.getElementById('articles-container');
-            container.innerHTML = articles.map(a => `
-        <div class="card">
-            <div>
-                <span class="badge badge-${a.priority_label}">${a.priority_label}</span>
-                <span class="badge" style="background:var(--bg3); border:1px solid var(--border)">${a.category}</span>
+                emptyState.style.display = 'none';
+
+                const html = articles.map(a => `
+            <div class="card">
+                <div class="card-badges">
+                    <span class="badge badge-${a.priority_label}">${a.priority_label}</span>
+                    <span class="badge badge-category">${a.category}</span>
+                    <span class="badge badge-source">${a.source_name}</span>
+                </div>
+                <a href="${a.url}" target="_blank" class="card-title">${a.title}</a>
+                <div class="card-summary">${a.summary_ja}</div>
+                
+                <div class="card-tags">
+                    ${(a.tags || []).slice(0, 3).map(t => `<span class="tag">${t}</span>`).join('')}
+                </div>
+                
+                ${a.business_point ? `<div class="business-point">💡 ${a.business_point}</div>` : ''}
+                
+                <div class="card-footer">
+                    <div>
+                        <span style="font-weight:bold; color:var(--text);">★ ${a.score}</span> 
+                        <span style="margin:0 0.4rem; color:var(--border);">|</span> 
+                        <span class="trust-${a.trust_level}">信頼度: ${a.trust_level}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:1rem;">
+                        <span>${formatDate(a.published_at)}</span>
+                        <button class="clip-btn ${a.is_clipped ? 'clipped' : ''}" onclick="toggleClip(${a.id}, this)">
+                          ${a.is_clipped ? '★' : '☆'}
+                        </button>
+                    </div>
+                </div>
             </div>
-            <a href="${a.url}" target="_blank" class="card-title">${a.title}</a>
-            <div class="card-summary">${a.summary_ja}</div>
-            ${a.business_point ? `<div class="business-point">💼 ${a.business_point}</div>` : ''}
-            <div class="card-tags">
-                ${(a.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}
-            </div>
-            <div class="card-footer">
-                <div>Score: ${a.score} | <span class="trust-${a.trust_level}">Trust: ${a.trust_level}</span></div>
-                <button class="clip-btn ${a.is_clipped ? 'clipped' : ''}" onclick="toggleClip(${a.id}, this)">
-                  ${a.is_clipped ? '★' : '☆'}
-                </button>
-            </div>
-        </div>
-    `).join('');
+        `).join('');
+
+                if (currentOffset === 0) {
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML += html;
+                }
+
+                if (articles.length === LIMIT) {
+                    loadMoreBtn.style.display = 'block';
+                } else {
+                    loadMoreBtn.style.display = 'none';
+                }
+            } catch (e) {
+                console.error("Failed to load articles", e);
+            }
+        }
+
+        function loadMore() {
+            currentOffset += LIMIT;
+            loadArticles();
         }
 
         async function toggleClip(id, btn) {
@@ -138,7 +234,7 @@
         }
 
         async function runCollect() {
-            alert("バックグラウンドで収集を開始します。");
+            alert("バックグラウンドで収集を開始します。2〜3分後にリロードしてください。");
             await fetch('/api/collect', { method: 'POST' });
         }
 

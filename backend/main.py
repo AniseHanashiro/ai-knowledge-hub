@@ -67,6 +67,7 @@ def get_articles(
     days: Optional[int] = 7,
     min_score: Optional[int] = None,
     search: Optional[str] = None,
+    offset: int = 0,
     db: Session = Depends(get_db)
 ):
     q = db.query(models.Article)
@@ -87,7 +88,7 @@ def get_articles(
             models.Article.summary_ja.icontains(search)
         )
         
-    return q.order_by(desc(models.Article.score)).limit(100).all()
+    return q.order_by(desc(models.Article.score)).offset(offset).limit(20).all()
 
 @app.get("/api/articles/{id}")
 def get_article(id: int, db: Session = Depends(get_db)):
@@ -201,7 +202,9 @@ def get_clips(db: Session = Depends(get_db)):
 def get_stats(db: Session = Depends(get_db)):
     total_articles = db.query(models.Article).count()
     total_sources = db.query(models.CustomSource).count()
-    return {"articles": total_articles, "sources": total_sources}
+    today_cutoff = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_articles = db.query(models.Article).filter(models.Article.published_at >= today_cutoff).count()
+    return {"articles": total_articles, "sources": total_sources, "today_articles": today_articles}
 
 @app.get("/feed/public")
 def get_public_feed(db: Session = Depends(get_db)):
