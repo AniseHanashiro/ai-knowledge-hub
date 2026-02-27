@@ -7,55 +7,82 @@ from google import genai
 from database import SessionLocal
 from models import Article, CustomSource
 
-def get_gemini_client():
+import time
+import random
+
+def get_gemini_analysis(title: str, text: str, source_type: str) -> dict:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key or api_key == "your_gemini_api_key_here":
-        raise ValueError("Valid GEMINI_API_KEY is required.")
-    return genai.Client(api_key=api_key)
-
-def analyze_content(title, text, source_type):
-    client = get_gemini_client()
-    safe_text = (text or "")[:4000]
-    prompt = f"""
-    以下のコンテンツを分析し、指定されたフォーマットのJSONで出力してください。
-    
-    タイトル: {title}
-    種別: {source_type}
-    コンテンツ: {safe_text}
-    
-    【JSON出力要件】
-    {{
-        "category": "LLM または 画像生成 または エージェント または 開発ツール または 研究 または ビジネス または 全般",
-        "tags": ["技術", "概念", "などのタグを3-5個"],
-        "company_tags": ["関連する企業名を1-3個。なければ空配列"],
-        "priority_label": "BREAKING または HOT または HIGH または MEDIUM または LOW",
-        "trust_level": "HIGH または MEDIUM または LOW",
-        "trust_reason": "その信頼度の理由を1文で",
-        "summary_ja": "日本語3行要約",
-        "business_point": "ビジネスへの影響を1文で",
-        "score_details": {{
-            "relevance": 0-40,
-            "reliability": 0-30,
-            "freshness": 0-20,
-            "virality": 0-10
-        }}
-    }}
-    JSONコードブロックで返してください。それ以外の文字は不要です。
-    """
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt
-        )
-        result = response.text.strip()
-        if result.startswith("```json"):
-            result = result[7:-3].strip()
-        elif result.startswith("```"):
-            result = result[3:-3].strip()
-        return json.loads(result)
-    except Exception as e:
-        print(f"Gemini Analysis Error: {e}")
+        print("[GEMINI] APIキーなし、デフォルト値使用")
         return {}
+    
+    for attempt in range(4):  # 最大4回試行
+        try:
+            # リクエスト前に2秒ウェイト（固定）
+            time.sleep(2.0)
+            
+            client = genai.Client(api_key=api_key)
+            safe_text = (text or "")[:1500]
+            
+            prompt = f"""以下のAI/テクノロジーニュース記事を分析してJSON形式で返してください。
+            
+タイトル: {title}
+種別: {source_type}
+記事内容:
+{safe_text}
+
+必ず以下のJSON形式のみで回答（```不要）:
+{{
+  "summary_ja": "日本語で3行の要約",
+  "tags": ["タグ1", "タグ2"],
+  "company_tags": ["関連する企業名を1-3個。なければ空配列"],
+  "category": "LLM または 画像生成 または エージェント または 開発ツール または 研究 または ビジネス または 全般",
+  "priority_label": "BREAKING または HOT または HIGH または MEDIUM または LOW",
+  "trust_level": "HIGH または MEDIUM または LOW",
+  "trust_reason": "その信頼度の理由を1文で",
+  "business_point": "ビジネスへの影響を1文で",
+  "score_details": {{
+      "relevance": 0-40,
+      "reliability": 0-30,
+      "freshness": 0-20,
+      "virality": 0-10
+  }}
+}}"""
+            print(f"[GEMINI] 分析開始: {title[:50]}")
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
+            
+            result_text = response.text.strip()
+            # JSONブロックの除去
+            for marker in ['```json', '```']:
+                if marker in result_text:
+                    parts = result_text.split(marker)
+                    if len(parts) >= 2:
+                        result_text = parts[1].split('```')[0].strip()
+                        break
+            
+            result = json.loads(result_text)
+            print(f"[GEMINI] ✓ 分析成功: category={result.get('category')}")
+            return result
+            
+        except Exception as e:
+            err = str(e)
+            if "429" in err or "RESOURCE_EXHAUSTED" in err:
+                wait = 30 * (2 ** attempt)
+                print(f"[RATE LIMIT] 429エラー、{wait}秒待機... (試行{attempt+1}/4)")
+                time.sleep(wait)
+            elif "json" in err.lower() or "JSONDecodeError" in err:
+                print(f"[GEMINI] JSONパースエラー: {err[:100]}")
+                # JSON失敗の場合は再試行しない
+                return {}
+            else:
+                print(f"[GEMINI] 予期せぬエラー: {err[:200]}")
+                return {}
+    
+    print("[GEMINI] 最大試行数超過、デフォルト値使用")
+    return {}
 
 def fetch_rss(url):
     feed = feedparser.parse(url)
@@ -99,13 +126,21 @@ def collect_data():
             if source.type == "rss":
                 items = fetch_rss(source.url)
             elif source.type == "youtube":
-                # Ensure it's a channel ID, not a full youtube URL, or handle both.
-                # Here we assume the DB value is the channel ID because defaults look like UC...
                 items = fetch_youtube(source.url)
                 
+            print(f"[{source.type.upper()}] {source.display_name}: {len(items)}件取得")
+                
+            MAX_PER_SOURCE = 3
+            saved_count = 0
+                
             for item in items:
+                if saved_count >= MAX_PER_SOURCE:
+                    print(f"[LIMIT] {source.display_name}: 最大{MAX_PER_SOURCE}件に達しました")
+                    break
+                    
                 # Check exist
                 if db.query(Article).filter(Article.url == item["url"]).first():
+                    print(f"[SKIP] 重複スキップ: {item['title'][:50]}")
                     continue
                     
                 text_to_analyze = item["summary"]
@@ -118,9 +153,9 @@ def collect_data():
                         if transcript:
                             text_to_analyze = transcript
                 
-                analysis = analyze_content(item["title"], text_to_analyze, source.type)
+                analysis = get_gemini_analysis(item["title"], text_to_analyze, source.type)
                 if not analysis:
-                    print(f"Skipping {item['title']} due to analysis failure.")
+                    print(f"[SKIP] {item['title'][:50]} due to analysis failure.")
                     continue
                 
                 score = score_article(analysis.get("score_details", {}))
@@ -149,13 +184,16 @@ def collect_data():
                 )
                 db.add(article)
                 db.commit()
-                print(f"Added: {article.title}")
+                print(f"[SAVE] 保存: {article.title[:50]}")
+                saved_count += 1
                 
             source.last_fetched = datetime.datetime.now()
             db.commit()
             
         except Exception as e:
-            print(f"Error processing source {source.url}: {e}")
+            import traceback
+            print(f"[ERROR] processing source {source.url}: {e}")
+            traceback.print_exc()
             
     db.close()
     print("Collection finished.")

@@ -2,7 +2,7 @@ name: Daily Data Collection
 
 on:
   schedule:
-    - cron: '0 22 * * *' # 毎日 22:00 UTC = 翌7:00 JST
+    - cron: '0 18 * * *' # 毎日 JST 03:00 (UTC 18:00)
   workflow_dispatch:
 
 jobs:
