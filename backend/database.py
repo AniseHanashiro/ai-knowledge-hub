@@ -10,7 +10,7 @@ from models import Base
 
 load_dotenv()
 
-DATABASE_PATH = os.getenv("DATABASE_PATH", "./ai_knowledge_hub.db")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/ai_knowledge_hub.db")
 db_dir = os.path.dirname(os.path.abspath(DATABASE_PATH))
 os.makedirs(db_dir, exist_ok=True)
 print(f"[DB] データベースパス: {os.path.abspath(DATABASE_PATH)}")
